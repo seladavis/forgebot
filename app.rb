@@ -59,6 +59,8 @@ post "/" do
       response = respond_with_question(params)
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
+    elsif params[:text].match(/!h$/i)
+      response = response_with_hint
     elsif params[:text].match(/!a /)
       response = process_answer(params)
     end
@@ -110,6 +112,25 @@ def respond_with_question(params)
     end
   end
   question
+end
+
+def respond_with_hint
+  reply = ""
+  channel_id = params[:channel_id]
+  key = "current_question:#{channel_id}"
+  current_question = $redis.get(key)
+  if current_question.nil?
+    reply = trebek_me if !$redis.exists("shush:answer:#{channel_id}")
+  else
+    current_question = JSON.parse(current_question)
+    current_answer = current_question["answer"]
+    hint_key = key + ":hint_count"
+    hint_count = $redis.get(hint_key)
+    hint_count = hint_count ? 0 : hint_count
+    $redis.set(hint_key, hint_key + 1)
+    reply = current_answer[0,hint_count].ljust(current_answer.length, ".")
+  end
+  reply
 end
 
 # Gets a random answer from the jService API, and does some cleanup on it:
@@ -246,6 +267,7 @@ end
 def mark_question_as_answered(channel_id)
   $redis.pipelined do
     $redis.del("current_question:#{channel_id}")
+    $redis.del("current_question:#{channel_id}:hint_count")
     $redis.del("shush:question:#{channel_id}")
     $redis.setex("shush:answer:#{channel_id}", 5, "true")
   end
