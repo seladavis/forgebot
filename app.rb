@@ -416,7 +416,7 @@ def respond_with_loserboard
     else
       response = "There are no scores yet!"
     end
-    $redis.setex(key, 60*5, response)
+    $redis.setex(key, 15, response)
   end
   response
 end
