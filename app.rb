@@ -125,15 +125,20 @@ def respond_with_hint
     current_question = JSON.parse(current_question)
     current_answer = current_question["answer"]
     hint_count = get_hint_count_value
-    $redis.set(hint_key, hint_key + 1)
+    $redis.set(get_hint_key, hint_count + 1)
     reply = current_answer[0,hint_count].ljust(current_answer.length, ".")
   end
   reply
 end
 
-def get_hint_count_value
+def get_hint_key
   key = "current_question:#{params[:channel_id]}"
   hint_key = key + ":hint_count"
+  hint_key
+end
+
+def get_hint_count_value
+  hint_key = get_hint_key
   hint_count = $redis.get(hint_key)
   hint_count = hint_count ? 0 : hint_count.to_i
   hint_count
