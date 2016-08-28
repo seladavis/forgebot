@@ -124,8 +124,7 @@ def respond_with_hint
   else
     current_question = JSON.parse(current_question)
     current_answer = current_question["answer"]
-    hint_count = get_hint_count_value
-    hint_count = hint_count + 1
+    hint_count = get_hint_count_value + 1
     $redis.set(get_hint_key, hint_count.to_s)
     reply = current_answer[0,hint_count].ljust(current_answer.length, ".") + " (hints used: #{hint_count})"
   end
@@ -140,8 +139,11 @@ end
 
 def get_hint_count_value
   hint_key = get_hint_key
-  hint_count = $redis.get(hint_key)
-  hint_count = hint_count ? 0 : hint_count.to_i
+  if $redis.exists(hint_key)
+    hint_count = $redis.get(hint_key).to_i
+  else
+    hint_count = 0
+  end
   hint_count
 end
 
