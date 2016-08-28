@@ -124,13 +124,19 @@ def respond_with_hint
   else
     current_question = JSON.parse(current_question)
     current_answer = current_question["answer"]
-    hint_key = key + ":hint_count"
-    hint_count = $redis.get(hint_key)
-    hint_count = hint_count ? 0 : hint_count.to_i
+    hint_count = get_hint_count_value
     $redis.set(hint_key, hint_key + 1)
     reply = current_answer[0,hint_count].ljust(current_answer.length, ".")
   end
   reply
+end
+
+def get_hint_count_value
+  key = "current_question:#{channel_id}"
+  hint_key = key + ":hint_count"
+  hint_count = $redis.get(hint_key)
+  hint_count = hint_count ? 0 : hint_count.to_i
+  hint_count
 end
 
 # Gets a random answer from the jService API, and does some cleanup on it:
@@ -188,8 +194,13 @@ def process_answer(params)
       mark_question_as_answered(params[:channel_id])
     #elsif is_question_format?(user_answer) && is_correct_answer?(current_answer, user_answer)
     elsif is_correct_answer?(current_answer, user_answer)
-      score = update_score(user_id, current_question["value"])
-      reply = "That is correct, #{get_slack_name(user_id)}. The answer was #{current_answer}. Your total score is #{currency_format(score)}."
+      adjusted_points = get_adjusted_points(current_question["value"])
+      score = update_score(user_id, adjusted_points)
+      earned_str = "#{currency_format(adjusted_points)}"
+      if (adjusted_points != current_question["value"])
+        earned_str = earned_str + " (adjusted from: #{currency_format(current_question["value"])})"
+      end
+      reply = "That is correct, #{get_slack_name(user_id)}. The answer was #{current_answer}. You have earned #{earned_str}. Your total score is #{currency_format(score)}."
       mark_question_as_answered(params[:channel_id])
     #elsif is_correct_answer?(current_answer, user_answer)
     #  score = update_score(user_id, (current_question["value"] * -1))
@@ -203,6 +214,15 @@ def process_answer(params)
     end
   end
   reply
+end
+
+def get_adjusted_points(original_points)
+  # reduce by 100 each time, min 100
+  adjusted_points = original_points
+  hint_count = get_hint_count_value
+  adjusted_points = adjusted_points - (hint_count * 100)
+  adjusted_points = [adjusted_points, 100].max
+  adjusted_points
 end
 
 def clean_incorrect(incorrect_answer)
