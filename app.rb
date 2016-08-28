@@ -126,7 +126,7 @@ def respond_with_hint
     current_answer = current_question["answer"]
     hint_count = get_hint_count_value
     hint_count = hint_count + 1
-    $redis.set(get_hint_key, hint_count)
+    $redis.set(get_hint_key, hint_count.to_s)
     reply = current_answer[0,hint_count].ljust(current_answer.length, ".") + " (hints used: #{hint_count})"
   end
   reply
