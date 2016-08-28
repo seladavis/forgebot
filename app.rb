@@ -132,7 +132,7 @@ def respond_with_hint
 end
 
 def get_hint_count_value
-  key = "current_question:#{channel_id}"
+  key = "current_question:#{params[:channel_id]}"
   hint_key = key + ":hint_count"
   hint_count = $redis.get(hint_key)
   hint_count = hint_count ? 0 : hint_count.to_i
