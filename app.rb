@@ -60,7 +60,7 @@ post "/" do
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
     elsif params[:text].match(/!h$/i)
-      response = response_with_hint
+      response = respond_with_hint
     elsif params[:text].match(/!a /)
       response = process_answer(params)
     end
