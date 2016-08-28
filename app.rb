@@ -190,9 +190,6 @@ def process_answer(params)
     current_answer = current_question["answer"]
     user_answer = params[:text]
     answered_key = "user_answer:#{channel_id}:#{current_question["id"]}:#{user_id}"
-    #if $redis.exists(answered_key)
-    #  reply = "You had your chance, #{get_slack_name(user_id)}. Let someone else answer."
-    #elsif params["timestamp"].to_f > current_question["expiration"]
     if params["timestamp"].to_f > current_question["expiration"]
       if is_correct_answer?(current_answer, user_answer)
         reply = "That is correct, #{get_slack_name(user_id)}, but time's up! Remember, you have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer."
@@ -200,7 +197,6 @@ def process_answer(params)
         reply = "Time's up, #{get_slack_name(user_id)}! Remember, you have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer. The correct answer is `#{current_question["answer"]}`."
       end
       mark_question_as_answered(params[:channel_id])
-    #elsif is_question_format?(user_answer) && is_correct_answer?(current_answer, user_answer)
     elsif is_correct_answer?(current_answer, user_answer)
       adjusted_points = get_adjusted_points(current_question["value"])
       score = update_score(user_id, adjusted_points)
@@ -210,14 +206,8 @@ def process_answer(params)
       end
       reply = "That is correct, #{get_slack_name(user_id)}. The answer was #{current_answer}. You have earned #{earned_str}. Your total score is #{currency_format(score)}."
       mark_question_as_answered(params[:channel_id])
-    #elsif is_correct_answer?(current_answer, user_answer)
-    #  score = update_score(user_id, (current_question["value"] * -1))
-    #  reply = "That is correct, #{get_slack_name(user_id)}, but responses have to be in the form of a question. Your total score is #{currency_format(score)}."
-    #  $redis.setex(answered_key, ENV["SECONDS_TO_ANSWER"], "true")
     else
-      #score = update_score(user_id, (current_question["value"] * -1))
       reply = "#{clean_incorrect(user_answer)} is incorrect, #{get_slack_name(user_id)}."
-      #Your score is now #{currency_format(score)}."
       $redis.setex(answered_key, ENV["SECONDS_TO_ANSWER"], "true")
     end
   end
