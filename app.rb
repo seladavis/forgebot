@@ -54,9 +54,9 @@ post "/" do
       response = respond_with_leaderboard
     elsif params[:text].match(/^show (me\s+)?(the\s+)?loserboard$/i)
       response = respond_with_loserboard
-    elsif params[:text].match(/!t /)
+    elsif params[:text].match(/!t/i)
       response = respond_with_question(params)
-    elsif params[:text].match(/!top /)
+    elsif params[:text].match(/!top/i)
       response = respond_with_leaderboard(params)
     elsif params[:text].match(/!a /)
       response = process_answer(params)
