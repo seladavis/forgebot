@@ -168,7 +168,7 @@ def process_answer(params)
     #elsif is_question_format?(user_answer) && is_correct_answer?(current_answer, user_answer)
     elsif is_correct_answer?(current_answer, user_answer)
       score = update_score(user_id, current_question["value"])
-      reply = "That is correct, #{get_slack_name(user_id)}. Your total score is #{currency_format(score)}."
+      reply = "That is correct, #{get_slack_name(user_id)}. The answer was #{current_answer}. Your total score is #{currency_format(score)}."
       mark_question_as_answered(params[:channel_id])
     #elsif is_correct_answer?(current_answer, user_answer)
     #  score = update_score(user_id, (current_question["value"] * -1))
@@ -176,12 +176,16 @@ def process_answer(params)
     #  $redis.setex(answered_key, ENV["SECONDS_TO_ANSWER"], "true")
     else
       #score = update_score(user_id, (current_question["value"] * -1))
-      reply = "That is incorrect, #{get_slack_name(user_id)}."
+      reply = "#{clean_incorrect(user_answer)} is incorrect, #{get_slack_name(user_id)}."
       #Your score is now #{currency_format(score)}."
       $redis.setex(answered_key, ENV["SECONDS_TO_ANSWER"], "true")
     end
   end
   reply
+end
+
+def clean_incorrect(incorrect_answer)
+  incorrect_answer.sub("!a", "").strip
 end
 
 # Formats a number as currency.
