@@ -103,6 +103,7 @@ def respond_with_question(params)
     if !previous_question.nil?
       previous_question = JSON.parse(previous_question)["answer"]
       question = "The answer is `#{previous_question}`.\n"
+      mark_question_as_answered(params[:channel_id])
     end
     question += "The category is `#{response["category"]["title"]}` for #{currency_format(response["value"])}: `#{response["question"]}`"
     puts "[LOG] ID: #{response["id"]} | Category: #{response["category"]["title"]} | Question: #{response["question"]} | Answer: #{response["answer"]} | Value: #{response["value"]}"
