@@ -59,20 +59,20 @@ post "/" do
       response = respond_with_leaderboard
 
     #Original commands
-    elsif params[:text].match(/^jeopardy me/i)
+    elsif params[:text].match(/help$/i)
+      response = respond_with_help
+    elsif params[:text].match(/jeopardy me/i)
       response = respond_with_question(params)
     elsif params[:text].match(/my score$/i)
       response = respond_with_user_score(params[:user_id])
-    elsif params[:text].match(/^help$/i)
-      response = respond_with_help
-    elsif params[:text].match(/^show (me\s+)?(the\s+)?leaderboard$/i)
+    elsif params[:text].match(/show (me\s+)?(the\s+)?leaderboard$/i)
       response = respond_with_leaderboard
-    elsif params[:text].match(/^show (me\s+)?(the\s+)?loserboard$/i)
+    elsif params[:text].match(/show (me\s+)?(the\s+)?loserboard$/i)
       response = respond_with_loserboard
     end
   rescue => e
     puts "[ERROR] #{e}"
-    response = ""
+    response = ''
   end
   status 200
   body json_response_for_slack(response)
@@ -96,7 +96,9 @@ end
 def skip(params)
   key = "current_question:#{params[:channel_id]}"
   previous_question = $redis.get(key)
-  unless previous_question.nil?
+  if previous_question.nil?
+    'There is no active question'
+  else
     previous_answer = JSON.parse(previous_question)['answer']
     answer = "The answer is `#{previous_answer}`.\n"
     mark_question_as_answered(params[:channel_id])
