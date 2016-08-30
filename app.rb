@@ -1,11 +1,11 @@
 # encoding: utf-8
-require "sinatra"
-require "json"
-require "httparty"
-require "redis"
-require "dotenv"
-require "text"
-require "sanitize"
+require 'sinatra'
+require 'json'
+require 'httparty'
+require 'redis'
+require 'dotenv'
+require 'text'
+require 'sanitize'
 
 configure do
   # Load .env vars
@@ -36,12 +36,13 @@ end
 # text=trebekbot jeopardy me
 # trigger_word=trebekbot
 # 
-post "/" do
+post '/' do
+  response = ''
   begin
     puts "[LOG] #{params}"
     #params[:text] = params[:text].sub(params[:trigger_word], "").strip 
-    if params[:token] != ENV["OUTGOING_WEBHOOK_TOKEN"]
-      response = "Invalid token"
+    if params[:token] != ENV['OUTGOING_WEBHOOK_TOKEN']
+      response = 'Invalid token'
     elsif is_channel_blacklisted?(params[:channel_name])
       response = "Sorry, can't play in this channel."
 
@@ -82,22 +83,22 @@ end
 # 
 def json_response_for_slack(reply)
   response = { text: reply, link_names: 1 }
-  response[:username] = ENV["BOT_USERNAME"] unless ENV["BOT_USERNAME"].nil?
-  response[:icon_emoji] = ENV["BOT_ICON"] unless ENV["BOT_ICON"].nil?
+  response[:username] = ENV['BOT_USERNAME'] unless ENV['BOT_USERNAME'].nil?
+  response[:icon_emoji] = ENV['BOT_ICON'] unless ENV['BOT_ICON'].nil?
   response.to_json
 end
 
 # Determines if a game of Jeopardy is allowed in the given channel
 # 
 def is_channel_blacklisted?(channel_name)
-  !ENV["CHANNEL_BLACKLIST"].nil? && ENV["CHANNEL_BLACKLIST"].split(",").find{ |a| a.gsub("#", "").strip == channel_name }
+  !ENV['CHANNEL_BLACKLIST'].nil? && ENV['CHANNEL_BLACKLIST'].split(',').find{ |a| a.gsub('#', '').strip == channel_name }
 end
 
 def skip(params)
   key = "current_question:#{params[:channel_id]}"
   previous_question = $redis.get(key)
   if previous_question.nil?
-    'There is no active question'
+    "There was no active question. Here's a new one:\n"
   else
     previous_answer = JSON.parse(previous_question)['answer']
     answer = "The answer is `#{previous_answer}`.\n"
@@ -124,10 +125,10 @@ def respond_with_question(params)
     else
       response = get_question
       question += type_question(response)
-      puts "[LOG] ID: #{response["id"]} | Category: #{response["category"]["title"]} | Question: #{response["question"]} | Answer: #{response["answer"]} | Value: #{response["value"]}"
+      puts "[LOG] ID: #{response['id']} | Category: #{response['category']['title']} | Question: #{response['question']} | Answer: #{response['answer']} | Value: #{response['value']}"
       $redis.pipelined do
         $redis.set(key, response.to_json)
-        $redis.setex("shush:question:#{channel_id}", 10, "true")
+        $redis.setex("shush:question:#{channel_id}", 10, 'true')
       end
     end
   end
@@ -135,26 +136,25 @@ def respond_with_question(params)
 end
 
 def respond_with_hint
-  reply = ""
+  reply = ''
   channel_id = params[:channel_id]
   key = "current_question:#{channel_id}"
   current_question = $redis.get(key)
   if current_question.nil?
-    reply = trebek_me if !$redis.exists("shush:answer:#{channel_id}")
+    reply = trebek_me unless $redis.exists("shush:answer:#{channel_id}")
   else
     current_question = JSON.parse(current_question)
-    current_answer = current_question["answer"]
+    current_answer = current_question['answer']
     hint_count = get_hint_count_value + 1
     $redis.set(get_hint_key, hint_count.to_s)
-    reply = current_answer[0,hint_count].ljust(current_answer.length, ".") + " (hints used: #{hint_count})"
+    reply = current_answer[0,hint_count].ljust(current_answer.length, '.') + " (hints used: #{hint_count})"
   end
   reply
 end
 
 def get_hint_key
   key = "current_question:#{params[:channel_id]}"
-  hint_key = key + ":hint_count"
-  hint_key
+  key + ':hint_count'
 end
 
 def get_hint_count_value
@@ -174,22 +174,24 @@ end
 # Adds an "expiration" value, which is the timestamp of the Slack request + the seconds to answer config var
 # 
 def get_question
-  uri = "http://jservice.io/api/random?count=1"
+  uri = 'http://jservice.io/api/random?count=1'
   request = HTTParty.get(uri)
   puts "[LOG] #{request.body}"
   response = JSON.parse(request.body).first
-  if response["question"].nil? || response["question"].strip == ""
+  # Some questions have no question, some have been marked invalid by the admin
+  if response['question'].nil? || response['question'].strip == '' ||
+     response['invalid_count'] > 0
     response = get_question
   end
-  response["value"] = 200 if response["value"].nil?
-  response["answer"] = Sanitize.fragment(response["answer"].gsub(/\s+(&nbsp;|&)\s+/i, " and "))
-  response["expiration"] = params["timestamp"].to_f + ENV["SECONDS_TO_ANSWER"].to_f
+  response['value'] = 200 if response['value'].nil?
+  response['answer'] = Sanitize.fragment(response['answer'].gsub(/\s+(&nbsp;|&)\s+/i, ' and '))
+  response['expiration'] = params['timestamp'].to_f + ENV['SECONDS_TO_ANSWER'].to_f
   response
 end
 
 # Formats the question for user display
 def type_question(question)
-  "The category is `#{question["category"]["title"]}` for #{currency_format(question["value"])}: `#{question["question"]}`"
+  "The category is `#{question['category']['title']}` for #{currency_format(question['value'])}: `#{question['question']}`"
 end
 
 # Processes an answer submitted by a user in response to a Jeopardy round:
@@ -207,33 +209,34 @@ def process_answer(params)
   user_id = params[:user_id]
   key = "current_question:#{channel_id}"
   current_question = $redis.get(key)
-  reply = ""
+  reply = ''
   if current_question.nil?
-    reply = trebek_me if !$redis.exists("shush:answer:#{channel_id}")
+    reply = trebek_me unless $redis.exists("shush:answer:#{channel_id}")
   else
     current_question = JSON.parse(current_question)
-    current_answer = current_question["answer"]
+    current_answer = current_question['answer']
     user_answer = params[:text]
-    answered_key = "user_answer:#{channel_id}:#{current_question["id"]}:#{user_id}"
-    if params["timestamp"].to_f > current_question["expiration"]
+    answered_key = "user_answer:#{channel_id}:#{current_question['id']}:#{user_id}"
+    if params['timestamp'].to_f > current_question['expiration']
       if is_correct_answer?(current_answer, user_answer)
-        reply = "That is correct, #{get_slack_name(user_id)}, but time's up! Remember, you have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer."
+        reply = "That is correct, #{get_slack_name(user_id)}, but time's up! Remember, you have #{ENV['SECONDS_TO_ANSWER']} seconds to answer."
       else
-        reply = "Time's up, #{get_slack_name(user_id)}! Remember, you have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer. The correct answer is `#{current_question["answer"]}`."
+        reply = "Time's up, #{get_slack_name(user_id)}! Remember, you have #{ENV['SECONDS_TO_ANSWER']} seconds to answer. The correct answer is `#{current_question['answer']}`."
       end
       mark_question_as_answered(params[:channel_id])
+
     elsif is_correct_answer?(current_answer, user_answer)
-      adjusted_points = get_adjusted_points(current_question["value"])
+      adjusted_points = get_adjusted_points(current_question['value'])
       score = update_score(user_id, adjusted_points)
       earned_str = "#{currency_format(adjusted_points)}"
-      if (adjusted_points != current_question["value"])
-        earned_str = earned_str + " (adjusted from: #{currency_format(current_question["value"])})"
+      if adjusted_points != current_question['value']
+        earned_str = earned_str + " (adjusted from: #{currency_format(current_question['value'])})"
       end
-      reply = "That is correct, #{get_slack_name(user_id)}. The answer was #{current_answer}. You have earned #{earned_str}. Your total score is #{currency_format(score)}."
+      reply = "That is correct, *#{get_slack_name(user_id)}*. The answer was `#{current_answer}`. You have earned #{earned_str}. Your total score is #{currency_format(score)}."
       mark_question_as_answered(params[:channel_id])
     else
       reply = "#{clean_incorrect(user_answer)} is incorrect, #{get_slack_name(user_id)}."
-      $redis.setex(answered_key, ENV["SECONDS_TO_ANSWER"], "true")
+      $redis.setex(answered_key, ENV['SECONDS_TO_ANSWER'], 'true')
     end
   end
   reply
@@ -244,18 +247,17 @@ def get_adjusted_points(original_points)
   adjusted_points = original_points
   hint_count = get_hint_count_value
   adjusted_points = adjusted_points - (hint_count * 100)
-  adjusted_points = [adjusted_points, 100].max
-  adjusted_points
+  [adjusted_points, 100].max
 end
 
 def clean_incorrect(incorrect_answer)
-  incorrect_answer.sub("!a", "").strip
+  incorrect_answer.sub('!a', '').strip
 end
 
 # Formats a number as currency.
 # For example -10000 becomes -$10,000
 # 
-def currency_format(number, currency = "$")
+def currency_format(number, currency = '$')
   prefix = number >= 0 ? currency : "-#{currency}"
   moneys = number.abs.to_s
   while moneys.match(/(\d+)(\d\d\d)/)
@@ -269,7 +271,7 @@ end
 # (I don't care if there's no question mark)
 # 
 def is_question_format?(answer)
-  answer.gsub(/[^\w\s]/i, "").match(/^(what|whats|where|wheres|who|whos) /i)
+  answer.gsub(/[^\w\s]/i, '').match(/^(what|whats|where|wheres|who|whos) /i)
 end
 
 # Checks if the user answer matches the correct answer.
@@ -282,23 +284,23 @@ end
 # to account for typos, etc.
 # 
 def is_correct_answer?(correct, answer)
-  correct = correct.gsub(/[^\w\s]/i, "")
-            .gsub(/^(the|a|an) /i, "")
+  correct = correct.gsub(/[^\w\s]/i, '')
+            .gsub(/^(the|a|an) /i, '')
             .strip
             .downcase
   answer = answer
-           .gsub(/\s+(&nbsp;|&)\s+/i, " and ")
-           .gsub(/[^\w\s]/i, "")
-           .gsub(/^(what|whats|where|wheres|who|whos) /i, "")
-           .gsub(/^(is|are|was|were) /, "")
-           .gsub(/^(the|a|an) /i, "")
-           .gsub(/\?+$/, "")
+           .gsub(/\s+(&nbsp;|&)\s+/i, ' and ')
+           .gsub(/[^\w\s]/i, '')
+           .gsub(/^(what|whats|where|wheres|who|whos) /i, '')
+           .gsub(/^(is|are|was|were) /, '')
+           .gsub(/^(the|a|an) /i, '')
+           .gsub(/\?+$/, '')
            .strip
            .downcase
   white = Text::WhiteSimilarity.new
   similarity = white.similarity(correct, answer)
   puts "[LOG] Correct answer: #{correct} | User answer: #{answer} | Similarity: #{similarity}"
-  correct == answer || similarity >= ENV["SIMILARITY_THRESHOLD"].to_f
+  correct == answer || similarity >= ENV['SIMILARITY_THRESHOLD'].to_f
 end
 
 # Marks question as answered by:
@@ -312,7 +314,7 @@ def mark_question_as_answered(channel_id)
     $redis.del("current_question:#{channel_id}")
     $redis.del("current_question:#{channel_id}:hint_count")
     $redis.del("shush:question:#{channel_id}")
-    $redis.setex("shush:answer:#{channel_id}", 5, "true")
+    $redis.setex("shush:answer:#{channel_id}", 5, 'true')
   end
 end
 
@@ -369,9 +371,9 @@ def get_slack_name(user_id, options = {})
     names = JSON.parse(names)
   end
   if options[:use_real_name]
-    name = names["real_name"].nil? ? names["name"] : names["real_name"]
+    name = names['real_name'].nil? ? names['name'] : names['real_name']
   else
-    name = names["first_name"].nil? ? names["name"] : names["first_name"]
+    name = names['first_name'].nil? ? names['name'] : names['first_name']
   end
   name
 end
@@ -381,19 +383,19 @@ end
 # make the bot reply using the user's actual name.)
 # 
 def get_slack_names_hash(user_id)
-  uri = "https://slack.com/api/users.list?token=#{ENV["API_TOKEN"]}"
+  uri = "https://slack.com/api/users.list?token=#{ENV['API_TOKEN']}"
   request = HTTParty.get(uri)
   response = JSON.parse(request.body)
-  if response["ok"]
-    user = response["members"].find { |u| u["id"] == user_id }
-    names = { :id => user_id, :name => user["name"]}
-    unless user["profile"].nil?
-      names["real_name"] = user["profile"]["real_name"] unless user["profile"]["real_name"].nil? || user["profile"]["real_name"] == ""
-      names["first_name"] = user["profile"]["first_name"] unless user["profile"]["first_name"].nil? || user["profile"]["first_name"] == ""
-      names["last_name"] = user["profile"]["last_name"] unless user["profile"]["last_name"].nil? || user["profile"]["last_name"] == ""
+  if response['ok']
+    user = response['members'].find { |u| u['id'] == user_id }
+    names = { :id => user_id, :name => user['name']}
+    unless user['profile'].nil?
+      names['real_name'] = user['profile']['real_name'] unless user['profile']['real_name'].nil? || user['profile']['real_name'] == ''
+      names['first_name'] = user['profile']['first_name'] unless user['profile']['first_name'].nil? || user['profile']['first_name'] == ''
+      names['last_name'] = user['profile']['last_name'] unless user['profile']['last_name'].nil? || user['profile']['last_name'] == ''
     end
   else
-    names = { :id => user_id, :name => "Sean Connery" }
+    names = { :id => user_id, :name => 'Sean Connery'}
   end
   names
 end
@@ -402,7 +404,7 @@ end
 # The response is cached for 5 minutes.
 # 
 def respond_with_leaderboard
-  key = "leaderboard:1"
+  key = 'leaderboard:1'
   response = $redis.get(key)
   if response.nil?
     leaders = []
@@ -415,7 +417,7 @@ def respond_with_leaderboard
     if leaders.size > 0
       response = "Let's take a look at the top scores:\n\n#{leaders.join("\n")}"
     else
-      response = "There are no scores yet!"
+      response = 'There are no scores yet!'
     end
     $redis.setex(key, 60*5, response)
   end
@@ -426,11 +428,11 @@ end
 # The response is cached for 5 minutes.
 # 
 def respond_with_loserboard
-  key = "loserboard:1"
+  key = 'loserboard:1'
   response = $redis.get(key)
   if response.nil?
     leaders = []
-    get_score_leaders({ :order => "asc" }).each_with_index do |leader, i|
+    get_score_leaders({ :order => 'asc'}).each_with_index do |leader, i|
       user_id = leader[:user_id]
       name = get_slack_name(leader[:user_id], { :use_real_name => true })
       score = currency_format(get_user_score(user_id))
@@ -439,7 +441,7 @@ def respond_with_loserboard
     if leaders.size > 0
       response = "Let's take a look at the bottom scores:\n\n#{leaders.join("\n")}"
     else
-      response = "There are no scores yet!"
+      response = 'There are no scores yet!'
     end
     $redis.setex(key, 15, response)
   end
@@ -449,19 +451,18 @@ end
 # Gets N scores from redis, with optional sorting.
 # 
 def get_score_leaders(options = {})
-  options = { :limit => 10, :order => "desc" }.merge(options)
+  options = { :limit => 10, :order => 'desc'}.merge(options)
   leaders = []
-  $redis.scan_each(:match => "user_score:*"){ |key| user_id = key.gsub("user_score:", ""); leaders << { :user_id => user_id, :score => get_user_score(user_id) } }
+  $redis.scan_each(:match => 'user_score:*'){ |key| user_id = key.gsub('user_score:', ''); leaders << {:user_id => user_id, :score => get_user_score(user_id) } }
   puts "[LOG] Leaderboard: #{leaders.to_s}"
   if leaders.size > 1
-    if options[:order] == "desc"
+    if options[:order] == 'desc'
       leaders = leaders.uniq{ |l| l[:user_id] }.sort{ |a, b| b[:score] <=> a[:score] }.slice(0, options[:limit])
     else
       leaders = leaders.uniq{ |l| l[:user_id] }.sort{ |a, b| a[:score] <=> b[:score] }.slice(0, options[:limit])
     end
-  else
-    leaders
   end
+  leaders
 end
 
 # Funny quotes from SNL's Celebrity Jeopardy, to speak
@@ -469,27 +470,27 @@ end
 # 
 def trebek_me
   [ "Welcome back to Slack Jeopardy. Before we begin this Jeopardy round, I'd like to ask our contestants once again to please refrain from using ethnic slurs.",
-    "Okay, Turd Ferguson.",
-    "I hate my job.",
+    'Okay, Turd Ferguson.',
+    'I hate my job.',
     "Let's just get this over with.",
-    "Do you have an answer?",
+    'Do you have an answer?',
     "I don't believe this. Where did you get that magic marker? We frisked you on the way in here.",
-    "What a ride it has been, but boy, oh boy, these Slack users did not know the right answers to any of the questions.",
+    'What a ride it has been, but boy, oh boy, these Slack users did not know the right answers to any of the questions.',
     "Back off. I don't have to take that from you.",
-    "That is _awful_.",
+    'That is _awful_.',
     "Okay, for the sake of tradition, let's take a look at the answers.",
-    "Beautiful. Just beautiful.",
-    "Good for you. Well, as always, three perfectly good charities have been deprived of money, here on Slack Jeopardy. I'm #{ENV["BOT_USERNAME"]}, and all of you should be ashamed of yourselves! Good night!",
+    'Beautiful. Just beautiful.',
+    "Good for you. Well, as always, three perfectly good charities have been deprived of money, here on Slack Jeopardy. I'm #{ENV['BOT_USERNAME']}, and all of you should be ashamed of yourselves! Good night!",
     "And welcome back to Slack Jeopardy. Because of what just happened before during the commercial, I'd like to apologize to all blind people and children.",
-    "Thank you, thank you. Moving on.",
-    "I really thought that was going to work.",
+    'Thank you, thank you. Moving on.',
+    'I really thought that was going to work.',
     "Wonderful. Let's take a look at the categories. They are: `Potent Potables`, `Point to your own head`, `Letters or Numbers`, `Will this hurt if you put it in your mouth`, `An album cover`, `Make any noise`, and finally, `Famous Muppet Frogs`. I should add that the answer to every question in that category is `Kermit`.",
-    "For the last time, that is not a category.",
-    "Unbelievable.",
+    'For the last time, that is not a category.',
+    'Unbelievable.',
     "Great. Let's take a look at the final board. And the categories are: `Potent Potables`, `Sharp Things`, `Movies That Start with the Word Jaws`, `A Petit Déjeuner` -- that category is about French phrases, so let's just skip it.",
     "Enough. Let's just get this over with. Here are the categories, they are: `Potent Potables`, `Countries Between Mexico and Canada`, `Members of Simon and Garfunkel`, `I Have a Chardonnay` -- you choose this category, you automatically get the points and I get to have a glass of wine -- `Things You Do With a Pencil Sharpener`, `Tie Your Shoe`, and finally, `Toast`.",
     "Better luck to all of you, in the next round. It's time for Slack Jeopardy, let's take a look at the board. And the categories are: `Potent Potables`, `Literature` -- which is just a big word for books -- `Therapists`, `Current U.S. Presidents`, `Show and Tell`, `Household Objects`, and finally, `One-Letter Words`.",
-    "Uh, I see. Get back to your podium.",
+    'Uh, I see. Get back to your podium.',
     "You look pretty sure of yourself. Think you've got the right answer?",
     "Welcome back to Slack Jeopardy. We've got a real barnburner on our hands here.",
     "And welcome back to Slack Jeopardy. I'd like to once again remind our contestants that there are proper bathroom facilities located in the studio.",
@@ -505,12 +506,12 @@ end
 def respond_with_help
   reply = <<help
 Type `!t` to start a new round of Slack Jeopardy. I will pick the category and price. Anyone in the channel can respond.
-Type `!a` to respond to the active question. You have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer.
+Type `!a` to respond to the active question. You have #{ENV['SECONDS_TO_ANSWER']} seconds to answer.
 Type `!h` to get a one-letter hint. This reduces the value of the question by $100.
 Type `!skip` to skip the current question, see the answer, and get a new question.
 Type `!top` to see the top scores.
-Type `#{ENV["BOT_USERNAME"]} what is my score` to see your current score.
-Type `#{ENV["BOT_USERNAME"]} show the loserboard` to see the bottom scores.
+Type `#{ENV['BOT_USERNAME']} what is my score` to see your current score.
+Type `#{ENV['BOT_USERNAME']} show the loserboard` to see the bottom scores.
 help
   reply
 end
