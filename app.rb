@@ -44,6 +44,25 @@ post "/" do
       response = "Invalid token"
     elsif is_channel_blacklisted?(params[:channel_name])
       response = "Sorry, can't play in this channel."
+
+    #forgebot params
+    elsif params[:text].match(/!a /)
+      response = process_answer(params)
+    elsif params[:text].match(/!t$/i)
+      key = "current_question:#{params[:channel_id]}"
+      previous_question = $redis.get(key)
+      response = respond_with_question(params, previous_question)
+    elsif params[:text].match(/!h$/i)
+      response = respond_with_hint
+    elsif params[:text].match(/!skip$/i)
+      key = "current_question:#{params[:channel_id]}"
+      previous_question = $redis.get(key)
+      response = skip(params, previous_question)
+      response += respond_with_question(params, previous_question)
+    elsif params[:text].match(/!top$/i)
+      response = respond_with_leaderboard
+
+    #Original commands
     elsif params[:text].match(/^jeopardy me/i)
       response = respond_with_question(params)
     elsif params[:text].match(/my score$/i)
@@ -54,22 +73,6 @@ post "/" do
       response = respond_with_leaderboard
     elsif params[:text].match(/^show (me\s+)?(the\s+)?loserboard$/i)
       response = respond_with_loserboard
-    #forgebot params
-    elsif params[:text].match(/!t$/i)
-      key = "current_question:#{channel_id}"
-      previous_question = $redis.get(key)
-      response = respond_with_question(params, previous_question)
-    elsif params[:text].match(/!top$/i)
-      response = respond_with_leaderboard
-    elsif params[:text].match(/!h$/i)
-      response = respond_with_hint
-    elsif params[:text].match(/!a /)
-      response = process_answer(params)
-    elsif params[:text].match(/!skip$/i)
-      key = "current_question:#{channel_id}"
-      previous_question = $redis.get(key)
-      response = skip(params, previous_question)
-      response += respond_with_question(params, previous_question)
     end
   rescue => e
     puts "[ERROR] #{e}"
@@ -97,9 +100,9 @@ end
 def skip(params, previous_question)
   unless previous_question.nil?
     previous_answer = JSON.parse(previous_question)["answer"]
-    question = "The answer is `#{previous_answer}`.\n"
+    answer = "The answer is `#{previous_answer}`.\n"
     mark_question_as_answered(params[:channel_id])
-    question
+    answer
   end
 end
 
