@@ -180,7 +180,7 @@ def get_question
   response = JSON.parse(request.body).first
   # Some questions have no question, some have been marked invalid by the admin
   if response['question'].nil? || response['question'].strip == '' ||
-     (!response['invalid_count'].nil? && response['invalid_count'].to_i > 0
+     (!response['invalid_count'].nil? && response['invalid_count'].to_i > 0)
     response = get_question
   end
   response['value'] = 200 if response['value'].nil?
