@@ -63,6 +63,9 @@ post "/" do
       response = respond_with_hint
     elsif params[:text].match(/!a /)
       response = process_answer(params)
+    elsif params[:text].match(/!skip/i)
+      skip(params)
+      response = respond_with_question(params)
     end
   rescue => e
     puts "[ERROR] #{e}"
@@ -87,29 +90,35 @@ def is_channel_blacklisted?(channel_name)
   !ENV["CHANNEL_BLACKLIST"].nil? && ENV["CHANNEL_BLACKLIST"].split(",").find{ |a| a.gsub("#", "").strip == channel_name }
 end
 
+def skip(params)
+  previous_answer = JSON.parse(previous_question)["answer"]
+  question = "The answer is `#{previous_answer}`.\n"
+  mark_question_as_answered(params[:channel_id])
+end
+
 # Puts together the response to a request to start a new round (`jeopardy me`):
 # If the bot has been "shushed", says nothing.
-# Otherwise, speaks the answer to the previous round (if any),
-# speaks the category, value, and the new question, and shushes the bot for 5 seconds
+# If there's an existing question, repeats it.
+# Otherwise, speaks the category, value, and the new question, and shushes the bot for 5 seconds
 # (this is so two or more users can't do `jeopardy me` within 5 seconds of each other.)
 # 
 def respond_with_question(params)
   channel_id = params[:channel_id]
   question = ""
   unless $redis.exists("shush:question:#{channel_id}")
-    response = get_question
     key = "current_question:#{channel_id}"
     previous_question = $redis.get(key)
     if !previous_question.nil?
-      previous_question = JSON.parse(previous_question)["answer"]
-      question = "The answer is `#{previous_question}`.\n"
-      mark_question_as_answered(params[:channel_id])
-    end
-    question += "The category is `#{response["category"]["title"]}` for #{currency_format(response["value"])}: `#{response["question"]}`"
-    puts "[LOG] ID: #{response["id"]} | Category: #{response["category"]["title"]} | Question: #{response["question"]} | Answer: #{response["answer"]} | Value: #{response["value"]}"
-    $redis.pipelined do
-      $redis.set(key, response.to_json)
-      $redis.setex("shush:question:#{channel_id}", 10, "true")
+      previous_question = JSON.parse(previous_question)
+      question = type_question(previous_question)
+    else
+      response = get_question
+      question += type_question(response)
+      puts "[LOG] ID: #{response["id"]} | Category: #{response["category"]["title"]} | Question: #{response["question"]} | Answer: #{response["answer"]} | Value: #{response["value"]}"
+      $redis.pipelined do
+        $redis.set(key, response.to_json)
+        $redis.setex("shush:question:#{channel_id}", 10, "true")
+      end
     end
   end
   question
@@ -166,6 +175,11 @@ def get_question
   response["answer"] = Sanitize.fragment(response["answer"].gsub(/\s+(&nbsp;|&)\s+/i, " and "))
   response["expiration"] = params["timestamp"].to_f + ENV["SECONDS_TO_ANSWER"].to_f
   response
+end
+
+# Formats the question for user display
+def type_question(question)
+  "The category is `#{question["category"]["title"]}` for #{currency_format(question["value"])}: `#{question["question"]}`"
 end
 
 # Processes an answer submitted by a user in response to a Jeopardy round:
@@ -480,10 +494,12 @@ end
 # 
 def respond_with_help
   reply = <<help
-Type `#{ENV["BOT_USERNAME"]} jeopardy me` to start a new round of Slack Jeopardy. I will pick the category and price. Anyone in the channel can respond.
-Type `#{ENV["BOT_USERNAME"]} [what|where|who] [is|are] [answer]?` to respond to the active round. You have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer. Remember, responses must be in the form of a question, e.g. `#{ENV["BOT_USERNAME"]} what is dirt?`.
+Type `!t` to start a new round of Slack Jeopardy. I will pick the category and price. Anyone in the channel can respond.
+Type `!a` to respond to the active question. You have #{ENV["SECONDS_TO_ANSWER"]} seconds to answer.
+Type `!h` to get a one-letter hint. This reduces the value of the question by $100.
+Type `!skip` to skip the current question, see the answer, and get a new question.
+Type `!top` to see the top scores.
 Type `#{ENV["BOT_USERNAME"]} what is my score` to see your current score.
-Type `#{ENV["BOT_USERNAME"]} show the leaderboard` to see the top scores.
 Type `#{ENV["BOT_USERNAME"]} show the loserboard` to see the bottom scores.
 help
   reply
