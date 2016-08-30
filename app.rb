@@ -16,9 +16,9 @@ configure do
   # Set up redis
   case settings.environment
   when :development
-    uri = URI.parse(ENV["LOCAL_REDIS_URL"])
+    uri = URI.parse(ENV['LOCAL_REDIS_URL'])
   when :production
-    uri = URI.parse(ENV["REDISCLOUD_URL"])
+    uri = URI.parse(ENV['REDISCLOUD_URL'])
   end
   $redis = Redis.new(host: uri.host, port: uri.port, password: uri.password)
 end
@@ -49,16 +49,12 @@ post "/" do
     elsif params[:text].match(/!a /)
       response = process_answer(params)
     elsif params[:text].match(/!t$/i)
-      key = "current_question:#{params[:channel_id]}"
-      previous_question = $redis.get(key)
-      response = respond_with_question(params, previous_question)
+      response = respond_with_question(params)
     elsif params[:text].match(/!h$/i)
       response = respond_with_hint
     elsif params[:text].match(/!skip$/i)
-      key = "current_question:#{params[:channel_id]}"
-      previous_question = $redis.get(key)
-      response = skip(params, previous_question)
-      response += respond_with_question(params, previous_question)
+      response = skip(params)
+      response += respond_with_question(params)
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
 
@@ -97,9 +93,11 @@ def is_channel_blacklisted?(channel_name)
   !ENV["CHANNEL_BLACKLIST"].nil? && ENV["CHANNEL_BLACKLIST"].split(",").find{ |a| a.gsub("#", "").strip == channel_name }
 end
 
-def skip(params, previous_question)
+def skip(params)
+  key = "current_question:#{params[:channel_id]}"
+  previous_question = $redis.get(key)
   unless previous_question.nil?
-    previous_answer = JSON.parse(previous_question)["answer"]
+    previous_answer = JSON.parse(previous_question)['answer']
     answer = "The answer is `#{previous_answer}`.\n"
     mark_question_as_answered(params[:channel_id])
     answer
@@ -112,11 +110,12 @@ end
 # Otherwise, speaks the category, value, and the new question, and shushes the bot for 5 seconds
 # (this is so two or more users can't do `jeopardy me` within 5 seconds of each other.)
 # 
-def respond_with_question(params, previous_question)
+def respond_with_question(params)
   channel_id = params[:channel_id]
-  question = ""
+  question = ''
   unless $redis.exists("shush:question:#{channel_id}")
     key = "current_question:#{channel_id}"
+    previous_question = $redis.get(key)
     if !previous_question.nil?
       previous_question = JSON.parse(previous_question)
       question = type_question(previous_question)
