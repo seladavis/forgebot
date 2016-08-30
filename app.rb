@@ -56,16 +56,20 @@ post "/" do
       response = respond_with_loserboard
     #forgebot params
     elsif params[:text].match(/!t$/i)
-      response = respond_with_question(params)
+      key = "current_question:#{channel_id}"
+      previous_question = $redis.get(key)
+      response = respond_with_question(params, previous_question)
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
     elsif params[:text].match(/!h$/i)
       response = respond_with_hint
     elsif params[:text].match(/!a /)
       response = process_answer(params)
-    elsif params[:text].match(/!skip/i)
-      skip(params)
-      response = respond_with_question(params)
+    elsif params[:text].match(/!skip$/i)
+      key = "current_question:#{channel_id}"
+      previous_question = $redis.get(key)
+      response = skip(params, previous_question)
+      response += respond_with_question(params, previous_question)
     end
   rescue => e
     puts "[ERROR] #{e}"
@@ -90,10 +94,13 @@ def is_channel_blacklisted?(channel_name)
   !ENV["CHANNEL_BLACKLIST"].nil? && ENV["CHANNEL_BLACKLIST"].split(",").find{ |a| a.gsub("#", "").strip == channel_name }
 end
 
-def skip(params)
-  previous_answer = JSON.parse(previous_question)["answer"]
-  question = "The answer is `#{previous_answer}`.\n"
-  mark_question_as_answered(params[:channel_id])
+def skip(params, previous_question)
+  unless previous_question.nil?
+    previous_answer = JSON.parse(previous_question)["answer"]
+    question = "The answer is `#{previous_answer}`.\n"
+    mark_question_as_answered(params[:channel_id])
+    question
+  end
 end
 
 # Puts together the response to a request to start a new round (`jeopardy me`):
@@ -102,12 +109,11 @@ end
 # Otherwise, speaks the category, value, and the new question, and shushes the bot for 5 seconds
 # (this is so two or more users can't do `jeopardy me` within 5 seconds of each other.)
 # 
-def respond_with_question(params)
+def respond_with_question(params, previous_question)
   channel_id = params[:channel_id]
   question = ""
   unless $redis.exists("shush:question:#{channel_id}")
     key = "current_question:#{channel_id}"
-    previous_question = $redis.get(key)
     if !previous_question.nil?
       previous_question = JSON.parse(previous_question)
       question = type_question(previous_question)
