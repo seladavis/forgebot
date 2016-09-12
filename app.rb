@@ -61,9 +61,9 @@ post '/' do
 
     #Admin commands
     elsif params[:text].match(/reset$/i)
-      if(is_user_admin_or_err(params[:user_name]))
-        puts "[LOG] Output current score list (not implemented)"
-        puts "[LOG] Reset forgebot scores (not implemented)"
+      if is_user_admin_or_err?(params[:user_name])
+        puts '[LOG] Output current score list (not implemented)'
+        puts '[LOG] Reset forgebot scores (not implemented)'
       end
 
     #Original commands
@@ -110,8 +110,8 @@ def is_user_admin?(user_name)
 end
 
 def is_user_admin_or_err?(user_name)
-  isadmin = is_user_admin(user_name)
-  if(!isadmin)
+  isadmin = is_user_admin?(user_name)
+  unless isadmin
     puts 'That command requires admin privileges, which you don\'t have'
   end
   isadmin
