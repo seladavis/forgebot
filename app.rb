@@ -105,7 +105,7 @@ end
 #
 def is_user_admin?(user_name)
   isadmin = !ENV['ADMIN_USERS'].nil? && ENV['ADMIN_USERS'].split(',').find{ |u| u == user_name }
-  puts "Testing whether `#{user_name}` is an admin against `#{ENV['ADMIN_USERS']}`, result is `#{isadmin}"
+  puts "Testing whether `#{user_name}` is an admin against `#{ENV['ADMIN_USERS']}`, result is `#{isadmin}`"
   isadmin
 end
 
