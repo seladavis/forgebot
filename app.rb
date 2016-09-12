@@ -105,14 +105,14 @@ end
 #
 def is_user_admin?(user_name)
   isadmin = !ENV['ADMIN_USERS'].nil? && ENV['ADMIN_USERS'].split(',').find{ |u| u == user_name }
-  puts "Testing whether `#{user_name}` is an admin against `#{ENV['ADMIN_USERS']}`, result is `#{isadmin}`"
+  puts "[LOG] Testing whether #{user_name} is an admin against #{ENV['ADMIN_USERS']}, result is #{isadmin ? 'true' : 'false'}"
   isadmin
 end
 
 def is_user_admin_or_err?(user_name)
   isadmin = is_user_admin?(user_name)
   unless isadmin
-    puts 'That command requires admin privileges, which you don\'t have'
+    puts '[LOG] That command requires admin privileges, which you don\'t have'
   end
   isadmin
 end
