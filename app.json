@@ -41,5 +41,10 @@
       "required": false,
       "value": "general"
     }
+    "ADMIN_USERS": {
+      "description": "Comma-separated list of slack usernames that can administer the bot",
+      "required": true,
+      "value": ""
+    }
   }
 }

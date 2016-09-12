@@ -59,6 +59,13 @@ post '/' do
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
 
+    #Admin commands
+    elsif params[:text].match(/reset$/i)
+      if(is_user_admin_or_err(params[:user_name]))
+        puts "[LOG] Output current score list (not implemented)"
+        puts "[LOG] Reset forgebot scores (not implemented)"
+      end
+
     #Original commands
     elsif params[:text].match(/help$/i)
       response = respond_with_help
@@ -92,6 +99,22 @@ end
 # 
 def is_channel_blacklisted?(channel_name)
   !ENV['CHANNEL_BLACKLIST'].nil? && ENV['CHANNEL_BLACKLIST'].split(',').find{ |a| a.gsub('#', '').strip == channel_name }
+end
+
+# Defines if a given user is allowed to administer the channel
+#
+def is_user_admin?(user_name)
+  isadmin = !ENV['ADMIN_USERS'].nil? && ENV['ADMIN_USERS'].split(',').find{ |u| u == user_name }
+  puts "Testing whether `#{user_name}` is an admin against `#{ENV['ADMIN_USERS']}`, result is `#{isadmin}"
+  isadmin
+end
+
+def is_user_admin_or_err?(user_name)
+  isadmin = is_user_admin(user_name)
+  if(!isadmin)
+    puts 'That command requires admin privileges, which you don\'t have'
+  end
+  isadmin
 end
 
 def skip(params)
