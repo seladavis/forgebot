@@ -389,6 +389,8 @@ def update_score(user_id, score = 0)
     $redis.set(key, new_score)
     new_score
   end
+  # Clear the cached leaderboard so we have to recalculate it next time
+  $redis.del('leaderboard:1')
 end
 
 # Gets the given user's name(s) from redis.
