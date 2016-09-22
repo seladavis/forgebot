@@ -345,8 +345,14 @@ end
 # Resets all scores and any active question/answer
 #
 def reset_leaderboard(channel_id)
-  $redis.del(*$redis.keys("*:#{channel_id}*"))
-  $redis.del(*$redis.keys('user_score:*'))
+  channel_key = "*:#{channel_id}*"
+  score_key = 'user_score:*'
+  unless $redis.keys(channel_key).empty?
+    $redis.del(*$redis.keys(channel_key))
+  end
+  unless $redis.keys(score_key).empty?
+    $redis.del(*$redis.keys(score_key))
+  end
   $redis.del(*['leaderboard:1', 'loserboard:1'])
 end
 
