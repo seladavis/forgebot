@@ -347,9 +347,9 @@ end
 #
 def reset_leaderboard(channel_id)
   puts "[LOG] Resetting redis. Keys before: #{$redis.keys("*")}"
-  $redis.del(*$redis.keys("*:#{channel_id}:*"))
+  $redis.del(*$redis.keys("*:#{channel_id}*"))
   $redis.del(*$redis.keys('user_score:*'))
-  $redis.del('leaderboard', 'loserboard')
+  $redis.del(*['leaderboard', 'loserboard'])
   puts "[LOG] Resetting redis. Keys after: #{$redis.keys("*")}"
 end
 
