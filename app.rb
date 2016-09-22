@@ -59,6 +59,14 @@ post '/' do
     elsif params[:text].match(/!top$/i)
       response = respond_with_leaderboard
 
+    #Admin commands
+    elsif params[:text].match(/reset$/i)
+      if is_user_admin_or_err?(params[:user_name])
+        response = respond_with_leaderboard(true)
+        response += "\n\nStarting a new round of jeopardy"
+        reset_leaderboard(params[:channel_id])
+      end
+
     #Original commands
     elsif params[:text].match(/help$/i)
       response = respond_with_help
@@ -92,6 +100,22 @@ end
 # 
 def is_channel_blacklisted?(channel_name)
   !ENV['CHANNEL_BLACKLIST'].nil? && ENV['CHANNEL_BLACKLIST'].split(',').find{ |a| a.gsub('#', '').strip == channel_name }
+end
+
+# Defines if a given user is allowed to administer the channel
+#
+def is_user_admin?(user_name)
+  isadmin = !ENV['ADMIN_USERS'].nil? && ENV['ADMIN_USERS'].split(',').find{ |u| u == user_name }
+  puts "[LOG] Testing whether #{user_name} is an admin against #{ENV['ADMIN_USERS']}, result is #{isadmin ? 'true' : 'false'}"
+  isadmin
+end
+
+def is_user_admin_or_err?(user_name)
+  isadmin = is_user_admin?(user_name)
+  unless isadmin
+    puts '[LOG] That command requires admin privileges, which you don\'t have'
+  end
+  isadmin
 end
 
 def skip(params)
@@ -318,6 +342,14 @@ def mark_question_as_answered(channel_id)
   end
 end
 
+# Resets all scores and any active question/answer
+#
+def reset_leaderboard(channel_id)
+  $redis.del(*$redis.keys("*:#{channel_id}*"))
+  $redis.del(*$redis.keys('user_score:*'))
+  $redis.del(*%w(leaderboard:1 loserboard:1))
+end
+
 # Returns the given user's score.
 # 
 def respond_with_user_score(user_id)
@@ -403,7 +435,7 @@ end
 # Speaks the top scores across Slack.
 # The response is cached for 5 minutes.
 # 
-def respond_with_leaderboard
+def respond_with_leaderboard(is_final = false)
   key = 'leaderboard:1'
   response = $redis.get(key)
   if response.nil?
@@ -415,7 +447,12 @@ def respond_with_leaderboard
       leaders << "#{i + 1}. #{name}: #{score}"
     end
     if leaders.size > 0
-      response = "Let's take a look at the top scores:\n\n#{leaders.join("\n")}"
+      if is_final == true
+        response = 'The final scores for this round are:'
+      else
+        response = "Let's take a look at the top scores:"
+      end
+      response += "\n\n#{leaders.join("\n")}"
     else
       response = 'There are no scores yet!'
     end
@@ -425,7 +462,7 @@ def respond_with_leaderboard
 end
 
 # Speaks the bottom scores across Slack.
-# The response is cached for 5 minutes.
+# The response is cached for 15 seconds.
 # 
 def respond_with_loserboard
   key = 'loserboard:1'
@@ -465,39 +502,11 @@ def get_score_leaders(options = {})
   leaders
 end
 
-# Funny quotes from SNL's Celebrity Jeopardy, to speak
-# when someone invokes trebekbot and there's no active round.
+# When someone invokes trebekbot and there's no active question,
+# prompt them, don't insult them.
 # 
 def trebek_me
-  [ "Welcome back to Slack Jeopardy. Before we begin this Jeopardy round, I'd like to ask our contestants once again to please refrain from using ethnic slurs.",
-    'Okay, Turd Ferguson.',
-    'I hate my job.',
-    "Let's just get this over with.",
-    'Do you have an answer?',
-    "I don't believe this. Where did you get that magic marker? We frisked you on the way in here.",
-    'What a ride it has been, but boy, oh boy, these Slack users did not know the right answers to any of the questions.',
-    "Back off. I don't have to take that from you.",
-    'That is _awful_.',
-    "Okay, for the sake of tradition, let's take a look at the answers.",
-    'Beautiful. Just beautiful.',
-    "Good for you. Well, as always, three perfectly good charities have been deprived of money, here on Slack Jeopardy. I'm #{ENV['BOT_USERNAME']}, and all of you should be ashamed of yourselves! Good night!",
-    "And welcome back to Slack Jeopardy. Because of what just happened before during the commercial, I'd like to apologize to all blind people and children.",
-    'Thank you, thank you. Moving on.',
-    'I really thought that was going to work.',
-    "Wonderful. Let's take a look at the categories. They are: `Potent Potables`, `Point to your own head`, `Letters or Numbers`, `Will this hurt if you put it in your mouth`, `An album cover`, `Make any noise`, and finally, `Famous Muppet Frogs`. I should add that the answer to every question in that category is `Kermit`.",
-    'For the last time, that is not a category.',
-    'Unbelievable.',
-    "Great. Let's take a look at the final board. And the categories are: `Potent Potables`, `Sharp Things`, `Movies That Start with the Word Jaws`, `A Petit Déjeuner` -- that category is about French phrases, so let's just skip it.",
-    "Enough. Let's just get this over with. Here are the categories, they are: `Potent Potables`, `Countries Between Mexico and Canada`, `Members of Simon and Garfunkel`, `I Have a Chardonnay` -- you choose this category, you automatically get the points and I get to have a glass of wine -- `Things You Do With a Pencil Sharpener`, `Tie Your Shoe`, and finally, `Toast`.",
-    "Better luck to all of you, in the next round. It's time for Slack Jeopardy, let's take a look at the board. And the categories are: `Potent Potables`, `Literature` -- which is just a big word for books -- `Therapists`, `Current U.S. Presidents`, `Show and Tell`, `Household Objects`, and finally, `One-Letter Words`.",
-    'Uh, I see. Get back to your podium.',
-    "You look pretty sure of yourself. Think you've got the right answer?",
-    "Welcome back to Slack Jeopardy. We've got a real barnburner on our hands here.",
-    "And welcome back to Slack Jeopardy. I'd like to once again remind our contestants that there are proper bathroom facilities located in the studio.",
-    "Welcome back to Slack Jeopardy. Once again, I'm going to recommend that our viewers watch something else.",
-    "Great. Better luck to all of you in the next round. It's time for Slack Jeopardy. Let's take a look at the board. And the categories are: `Potent Potables`, `The Vowels`, `Presidents Who Are On the One Dollar Bill`, `Famous Titles`, `Ponies`, `The Number 10`, and finally: `Foods That End In \"Amburger\"`.",
-    "Let's take a look at the board. The categories are: `Potent Potables`, `The Pen is Mightier` -- that category is all about quotes from famous authors, so you'll all probably be more comfortable with our next category -- `Shiny Objects`, continuing with `Opposites`, `Things you Shouldn't Put in Your Mouth`, `What Time is It?`, and, finally, `Months That Start With Feb`."
-  ].sample
+  'There is no active question. Type "!t" to get a question.'
 end
 
 # Shows the help text.
