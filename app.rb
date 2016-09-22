@@ -63,7 +63,7 @@ post '/' do
     elsif params[:text].match(/reset$/i)
       if is_user_admin_or_err?(params[:user_name])
         response = respond_with_leaderboard(true)
-        response += '\n\nStarting a new round of jeopardy'
+        response += "\n\nStarting a new round of jeopardy"
         reset_leaderboard(params[:channel_id])
       end
 
@@ -349,7 +349,7 @@ def reset_leaderboard(channel_id)
   puts "[LOG] Resetting redis. Keys before: #{$redis.keys("*")}"
   $redis.del(*$redis.keys("*:#{channel_id}*"))
   $redis.del(*$redis.keys('user_score:*'))
-  $redis.del(*['leaderboard', 'loserboard'])
+  $redis.del(*['leaderboard*', 'loserboard*'])
   puts "[LOG] Resetting redis. Keys after: #{$redis.keys("*")}"
 end
 
@@ -450,7 +450,7 @@ def respond_with_leaderboard(is_final = false)
       leaders << "#{i + 1}. #{name}: #{score}"
     end
     if leaders.size > 0
-      if is_final
+      if is_final == true
         response = 'The final scores for this round are:'
       else
         response = "Let's take a look at the top scores:"
