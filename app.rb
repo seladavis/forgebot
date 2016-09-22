@@ -347,7 +347,7 @@ end
 def reset_leaderboard(channel_id)
   $redis.del(*$redis.keys("*:#{channel_id}*"))
   $redis.del(*$redis.keys('user_score:*'))
-  $redis.del(*%w(leaderboard:1 loserboard:1))
+  $redis.del(*['leaderboard:1', 'loserboard:1'])
 end
 
 # Returns the given user's score.
