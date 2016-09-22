@@ -61,10 +61,12 @@ post '/' do
 
     #Admin commands
     elsif params[:text].match(/reset$/i)
-      if is_user_admin_or_err?(params[:user_name])
-        response = respond_with_leaderboard(true)
+      if is_user_admin?(params[:user_name])
+        response = respond_with_leaderboard('The final scores for this round are:')
         response += "\n\nStarting a new round of jeopardy"
         reset_leaderboard(params[:channel_id])
+      else
+        response = "You do not have permission to run that command."
       end
 
     #Original commands
@@ -107,14 +109,6 @@ end
 def is_user_admin?(user_name)
   isadmin = !ENV['ADMIN_USERS'].nil? && ENV['ADMIN_USERS'].split(',').find{ |u| u == user_name }
   puts "[LOG] Testing whether #{user_name} is an admin against #{ENV['ADMIN_USERS']}, result is #{isadmin ? 'true' : 'false'}"
-  isadmin
-end
-
-def is_user_admin_or_err?(user_name)
-  isadmin = is_user_admin?(user_name)
-  unless isadmin
-    puts '[LOG] That command requires admin privileges, which you don\'t have'
-  end
   isadmin
 end
 
@@ -345,8 +339,14 @@ end
 # Resets all scores and any active question/answer
 #
 def reset_leaderboard(channel_id)
-  $redis.del(*$redis.keys("*:#{channel_id}*"))
-  $redis.del(*$redis.keys('user_score:*'))
+  channel_key = "*:#{channel_id}*"
+  score_key = 'user_score:*'
+  unless $redis.keys(channel_key).empty?
+    $redis.del(*$redis.keys(channel_key))
+  end
+  unless $redis.keys(score_key).empty?
+    $redis.del(*$redis.keys(score_key))
+  end
   $redis.del(*['leaderboard:1', 'loserboard:1'])
 end
 
@@ -375,6 +375,10 @@ end
 def update_score(user_id, score = 0)
   key = "user_score:#{user_id}"
   user_score = $redis.get(key)
+
+  # Clear the cached leaderboard so we have to recalculate it next time
+  $redis.del('leaderboard:1')
+
   if user_score.nil?
     $redis.set(key, score)
     score
@@ -435,7 +439,7 @@ end
 # Speaks the top scores across Slack.
 # The response is cached for 5 minutes.
 # 
-def respond_with_leaderboard(is_final = false)
+def respond_with_leaderboard(header_string = "Let's take a look at the top scores:")
   key = 'leaderboard:1'
   response = $redis.get(key)
   if response.nil?
@@ -447,12 +451,7 @@ def respond_with_leaderboard(is_final = false)
       leaders << "#{i + 1}. #{name}: #{score}"
     end
     if leaders.size > 0
-      if is_final == true
-        response = 'The final scores for this round are:'
-      else
-        response = "Let's take a look at the top scores:"
-      end
-      response += "\n\n#{leaders.join("\n")}"
+      response = "#{header_string}\n\n#{leaders.join("\n")}"
     else
       response = 'There are no scores yet!'
     end
