@@ -62,8 +62,8 @@ post '/' do
     #Admin commands
     elsif params[:text].match(/reset$/i)
       if is_user_admin_or_err?(params[:user_name])
-        response = respond_with_leaderboard
-        response += 'Starting a new round of jeopardy'
+        response = respond_with_leaderboard(true)
+        response += '\n\nStarting a new round of jeopardy'
         reset_leaderboard(params[:channel_id])
       end
 
@@ -346,9 +346,11 @@ end
 #
 #
 def reset_leaderboard(channel_id)
+  puts "[LOG] Resetting redis. Keys before: #{$redis.keys("*")}"
   $redis.del(*$redis.keys("*:#{channel_id}:*"))
   $redis.del(*$redis.keys('user_score:*'))
   $redis.del('leaderboard', 'loserboard')
+  puts "[LOG] Resetting redis. Keys after: #{$redis.keys("*")}"
 end
 
 # Returns the given user's score.
@@ -436,7 +438,7 @@ end
 # Speaks the top scores across Slack.
 # The response is cached for 5 minutes.
 # 
-def respond_with_leaderboard
+def respond_with_leaderboard(is_final = false)
   key = 'leaderboard:1'
   response = $redis.get(key)
   if response.nil?
@@ -448,7 +450,12 @@ def respond_with_leaderboard
       leaders << "#{i + 1}. #{name}: #{score}"
     end
     if leaders.size > 0
-      response = "Let's take a look at the top scores:\n\n#{leaders.join("\n")}"
+      if is_final
+        response = 'The final scores for this round are:'
+      else
+        response = "Let's take a look at the top scores:"
+      end
+      response += "\n\n#{leaders.join("\n")}"
     else
       response = 'There are no scores yet!'
     end
